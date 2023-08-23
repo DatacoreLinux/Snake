@@ -1,4 +1,5 @@
 #include "snake.h"
+#include "glyphs.c"
 
 //STREAM SIZE
 #define WINDOW_WIDTH 1770
@@ -12,6 +13,7 @@
 typedef struct {
     int x;
     int y;
+    int count;
 
 } apple;
 apple Apple;
@@ -107,8 +109,26 @@ void reset_snake()
     increase_snake();
     increase_snake();
 
+    Apple.count = 0;
 
     return;
+}
+
+void SDL_RenderFillCircle(SDL_Renderer *renderer, int x, int y, int radius, SDL_Color color)
+{
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    for (int w = 0; w < radius * 2; w++)
+    {
+        for (int h = 0; h < radius * 2; h++)
+        {
+            int dx = radius - w; // horizontal offset
+            int dy = radius - h; // vertical offset
+            if ((dx*dx + dy*dy) <= (radius * radius))
+            {
+                SDL_RenderDrawPoint(renderer, x + dx, y + dy);
+            }
+        }
+    }
 }
 
 void render_snake(SDL_Renderer *renderer, int x, int y)
@@ -237,22 +257,31 @@ void gen_apple()
     }
     while(in_snake);
 
-
-
+    Apple.count++;
 }
 
 void render_apple(SDL_Renderer *renderer, int x, int y)
 {
     SDL_SetRenderDrawColor(renderer, 0xff, 0x00, 0x00, 255);
 
+
     int apple_size = GRID_DIM / GRID_SIZE;
-    
+#if 0
+
     SDL_Rect app;
     app.x = x + (apple_size * Apple.x);
     app.y = y + (apple_size * Apple.y);
 
     SDL_RenderFillRect(renderer, &app);
+#else
+    int circle_x = x + (apple_size * Apple.x) + ( apple_size / 2 );
+    int circle_y = y + (apple_size * Apple.y) + ( apple_size / 2 );
 
+    SDL_Color c = {0xff, 0x00, 0x00, 255}; 
+
+    SDL_RenderFillCircle(renderer, circle_x, circle_y, apple_size / 2, c);
+
+#endif
     return;
 }
 
@@ -290,6 +319,51 @@ void detect_crash()
     return;
 }
 
+void render_score(SDL_Renderer *renderer, int x, int y)
+{
+    int score_x = x + GRID_DIM / 2 - 100;
+    int score_y = y - 150;
+
+    SDL_SetRenderDrawColor(renderer, 0x00, 0xff, 0x00, 255);
+#if 0    
+
+    SDL_Rect score;
+    score.w = 200;
+    score.h = 100;
+    score.x = score_x;
+    score.y = score_y;
+    
+    SDL_RenderDrawRect(renderer, &score);
+#endif
+
+    int cell_width = 10;
+
+    SDL_Rect cell;
+    cell.w = cell_width;
+    cell.h = cell_width;
+
+    char buffer[100];
+    snprintf(buffer, sizeof(buffer), "%3d", Apple.count);
+    
+    int x_step = 100;
+
+    for(int k = 0; k < 3; k++) {
+
+        for(int i = 0; i < 9; i++) {
+            for(int j = 0; j < 10; j++) {
+                cell.x = score_x + i * cell_width + (k * x_step); 
+                cell.y = score_y + j * cell_width; 
+                if(glyphs[(int)buffer[k]][j][i] == 1) {
+                    SDL_RenderFillRect(renderer, &cell);
+                }
+            }
+        }
+    }
+
+
+    return;
+}
+
 int main()
 {
     //INIT
@@ -301,6 +375,7 @@ int main()
     increase_snake();
 
     gen_apple();
+    Apple.count = 0;
 
     SDL_Window *window;
     SDL_Renderer *renderer;
@@ -333,6 +408,7 @@ int main()
     SDL_RenderPresent(renderer);
 
     bool quit = false;
+    bool paused = false;
     SDL_Event event;
 
     int grid_x = (WINDOW_WIDTH / 2) - (GRID_DIM / 2);
@@ -376,6 +452,10 @@ int main()
                                 moved = true;
                             }
                             break;
+                        case SDLK_p:
+                            if (paused == true) {paused = false;}
+                            if (paused == false) {paused = true;}
+                            break;
                     }
                     break;
             }
@@ -389,11 +469,13 @@ int main()
         render_grid(renderer, grid_x, grid_y);
         render_snake(renderer, grid_x, grid_y);
         render_apple(renderer, grid_x, grid_y);
+        render_score(renderer, grid_x, grid_y);
 
-
-        move_snake();
-        moved = false;
-        detect_crash();
+        if(paused == false) {
+            move_snake();
+            moved = false;
+            detect_crash();
+        }
         SDL_SetRenderDrawColor(renderer, 0x11, 0x11, 0x11, 255);
         SDL_RenderPresent(renderer);
         SDL_Delay(80);
